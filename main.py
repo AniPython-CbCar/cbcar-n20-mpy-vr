@@ -3,34 +3,41 @@ import time
 from ble_controller import BLEController
 from car import Motor, Servo360, Car
 from conf import (BLE_MAC, IN1, IN2, IN3, IN4, SERVO_PIN,
-                  LEFT_REVERSE, RIGHT_REVERSE, MOTOR_SPEED, SERVO_SPEED)
+                  LEFT_REVERSE, RIGHT_REVERSE,
+                  MOTOR_SPEED_A,
+                  MOTOR_SPEED_B,
+                  MOTOR_SPEED_C,
+                  MOTOR_SPEED_D,
+                  SERVO_SPEED)
 
 mo_a = Motor(IN1, IN2, reverse=LEFT_REVERSE)
 mo_b = Motor(IN3, IN4, reverse=RIGHT_REVERSE)
 servo = Servo360(SERVO_PIN)
 car = Car(mo_a, mo_b, servo)
 
+motor_speed = MOTOR_SPEED_B
 
 def handle_notify(key_hex):
+    global motor_speed
     # print("===> 回调函数触发，按键值:", key_hex)
 
     # 方向键
     if key_hex == "D1":
-        car.go(MOTOR_SPEED, MOTOR_SPEED),
+        car.go(motor_speed, motor_speed),
     elif key_hex == "D2":
-        car.go(-MOTOR_SPEED, -MOTOR_SPEED)
+        car.go(-motor_speed, -motor_speed)
     elif key_hex == "D3":
-        car.go(-MOTOR_SPEED, MOTOR_SPEED)
+        car.go(-motor_speed, motor_speed)
     elif key_hex == "D4":
-        car.go(MOTOR_SPEED, -MOTOR_SPEED)
+        car.go(motor_speed, -motor_speed)
     elif key_hex == "D5":
-        car.go(MOTOR_SPEED / 2, MOTOR_SPEED)
+        car.go(0, motor_speed)
     elif key_hex == "D6":
-        car.go(-MOTOR_SPEED / 2, -MOTOR_SPEED)
+        car.go(0, -motor_speed)
     elif key_hex == "D7":
-        car.go(MOTOR_SPEED, MOTOR_SPEED / 2)
+        car.go(motor_speed, 0)
     elif key_hex == "D8":
-        car.go(-MOTOR_SPEED, -MOTOR_SPEED / 2)
+        car.go(-motor_speed, 0)
     elif key_hex == "D0":
         car.stop()
 
@@ -54,6 +61,16 @@ def handle_notify(key_hex):
         car.servo_speed(SERVO_SPEED * 1.5)
     elif key_hex == "C6":
         car.servo_speed(0)
+
+    # ABCD 键
+    elif key_hex == "A2":
+        motor_speed = MOTOR_SPEED_A
+    elif key_hex == "A3":
+        motor_speed = MOTOR_SPEED_B
+    elif key_hex == "A4":
+        motor_speed = MOTOR_SPEED_C
+    elif key_hex == "A5":
+        motor_speed = MOTOR_SPEED_D
 
 
 ble_controller = BLEController(BLE_MAC, notify_callback=handle_notify)
