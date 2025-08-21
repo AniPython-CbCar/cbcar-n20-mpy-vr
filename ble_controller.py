@@ -1,8 +1,10 @@
 # ble_controller.py
+from machine import Pin, Timer
 import ubluetooth
 import time
 from micropython import const
 from ble_keymap import KEY_MAP
+from conf import LED_PIN
 
 _IRQ_SCAN_RESULT = const(5)
 _IRQ_SCAN_DONE = const(6)
@@ -18,6 +20,9 @@ class BLEController:
         target_mac: 目标设备的 MAC 地址
         notify_callback: 回调函数，格式 func(key_hex:str)
         """
+        self.led = Pin(LED_PIN, Pin.OUT)
+        self.timer = Timer(0)
+
         self.target_mac = target_mac.upper()
         self.device_name = None
         self.conn_handle = None
@@ -27,6 +32,18 @@ class BLEController:
         self.ble = ubluetooth.BLE()
         self.ble.active(True)
         self.ble.irq(self._bt_irq)
+
+        self.led_blink()
+
+    def led_on(self):
+        if LED_PIN == 8:
+            self.led.value(0)
+        else:
+            self.led.value(1)
+        self.timer.deinit()
+
+    def led_blink(self):
+        self.timer.init(period=100, mode=Timer.PERIODIC, callback=lambda t: self.led.value(not self.led.value()))
 
     def set_notify_callback(self, callback):
         """设置回调函数"""
@@ -75,13 +92,16 @@ class BLEController:
             self.conn_handle, addr_type, addr = data
             print("连接成功:", self.decode_mac(addr))
             print("设备名称:", self.device_name)
+            self.led_on()
 
         elif event == _IRQ_PERIPHERAL_DISCONNECT:
+            self.led_blink()
             self.conn_handle, addr_type, addr = data
             print("连接断开:", self.decode_mac(addr))
             self.device_name = None
             self.conn_handle = None
             self.start_scan()
+            time.sleep(3)
 
         elif event == _IRQ_GATTC_NOTIFY:
             conn_handle, value_handle, notify_data = data
