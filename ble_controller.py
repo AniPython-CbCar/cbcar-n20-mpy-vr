@@ -4,7 +4,7 @@ import ubluetooth
 import time
 from micropython import const
 from ble_keymap import KEY_MAP
-from conf import LED_PIN
+from conf import LED_PIN, BOARD
 
 _IRQ_SCAN_RESULT = const(5)
 _IRQ_SCAN_DONE = const(6)
@@ -12,10 +12,11 @@ _IRQ_PERIPHERAL_CONNECT = const(7)
 _IRQ_PERIPHERAL_DISCONNECT = const(8)
 _IRQ_GATTC_NOTIFY = const(18)
 
+
 class BLEController:
     # BLE 事件常量
 
-    def __init__(self, target_mac, notify_callback=None):
+    def __init__(self, target_mac, scan_time_over=20, notify_callback=None):
         """
         target_mac: 目标设备的 MAC 地址
         notify_callback: 回调函数，格式 func(key_hex:str)
@@ -28,19 +29,51 @@ class BLEController:
         self.conn_handle = None
         self.target_to_connect = None
         self.notify_callback = notify_callback  # 保存回调函数
+        self.scan_start_time = time.time()  # 添加扫描开始时间属性
+        self.scan_time_over = scan_time_over  # 设置扫描超时时间(秒)
+
+        if BOARD == "ESP32":
+            self.boot_key = Pin(0, Pin.IN, pull=Pin.PULL_UP)
+        elif BOARD == "ESP32-C3":
+            self.boot_key = Pin(9, Pin.IN, pull=Pin.PULL_UP)
+        else:
+            raise Exception("Unknown board")
+
+        self.boot_key.irq(trigger=Pin.IRQ_FALLING, handler=self.boot_key_interrupt_handler)
 
         self.ble = ubluetooth.BLE()
         self.ble.active(True)
         self.ble.irq(self._bt_irq)
 
-        self.led_blink()
+        self.connected = False
+
+
+    def boot_key_interrupt_handler(self, pin):
+        """
+        BOOT按键中断处理函数
+        当Pin9从高电平(1)变为低电平(0)时触发
+        """
+        # 停止BLE扫描
+        self.ble.gap_scan(None)
+        self.led_off()
+        print("BOOT按键触发，已停止BLE扫描")
+        raise RuntimeError(f"BOOT按键中断")
+
+    def led_off(self):
+        self.timer.deinit()
+        if LED_PIN == 8:
+            self.led.value(1)
+        else:
+            self.led.value(0)
+
 
     def led_on(self):
+        self.timer.deinit()
         if LED_PIN == 8:
             self.led.value(0)
         else:
             self.led.value(1)
-        self.timer.deinit()
+
 
     def led_blink(self):
         self.timer.init(period=100, mode=Timer.PERIODIC, callback=lambda t: self.led.value(not self.led.value()))
@@ -71,6 +104,7 @@ class BLEController:
     def start_scan(self):
         print("开始扫描目标设备...")
         self.ble.gap_scan(5000, 30000, 30000)
+        self.led_blink()
 
     def _bt_irq(self, event, data):
         if event == _IRQ_SCAN_RESULT:
@@ -81,27 +115,33 @@ class BLEController:
             if mac_str == self.target_mac:
                 self.device_name = name
                 print("找到目标设备:", mac_str, "名称:", self.device_name)
-                self.ble.gap_scan(None)  # 停止扫描
                 self.target_to_connect = (addr_type, bytes(addr))
+                self.ble.gap_scan(None)  # 停止扫描
 
         elif event == _IRQ_SCAN_DONE:
-            if self.conn_handle is None and self.target_to_connect is None:
+            print("扫描完成")
+            if (self.conn_handle is None and
+                    self.target_to_connect is None and
+                    time.time() - self.scan_start_time < self.scan_time_over):
                 self.start_scan()
 
         elif event == _IRQ_PERIPHERAL_CONNECT:
             self.conn_handle, addr_type, addr = data
             print("连接成功:", self.decode_mac(addr))
             print("设备名称:", self.device_name)
+            self.connected = True
             self.led_on()
 
         elif event == _IRQ_PERIPHERAL_DISCONNECT:
-            self.led_blink()
+
+            self.connected = False
             self.conn_handle, addr_type, addr = data
             print("连接断开:", self.decode_mac(addr))
+            self.scan_start_time = time.time()
             self.device_name = None
             self.conn_handle = None
+            self.target_to_connect = None
             self.start_scan()
-            time.sleep(3)
 
         elif event == _IRQ_GATTC_NOTIFY:
             conn_handle, value_handle, notify_data = data
@@ -121,12 +161,34 @@ class BLEController:
     def run(self):
         self.start_scan()
         while True:
-            if self.target_to_connect:
-                addr_type, addr = self.target_to_connect
-                print("尝试连接设备:", self.decode_mac(addr))
-                self.ble.gap_connect(addr_type, addr)
-                self.target_to_connect = None
-            time.sleep(1)
+
+            if self.boot_key.value() == 0:
+                self.led_off()
+                print("已按下BOOT按键，停止扫描")
+                self.ble.gap_scan(None)
+                self.ble.active(False)
+                break
+
+            if self.connected:
+                time.sleep(0.1)
+                self.led_on()
+                continue
+
+            else:
+                if not self.target_to_connect:
+                    if time.time() - self.scan_start_time < self.scan_time_over:
+                        continue
+                    else:
+                        print("扫描超时，停止扫描, 超时时间:", self.scan_time_over)
+                        self.led_off()
+                        self.ble.gap_scan(None)
+                        self.ble.active(False)
+                        break
+                else:
+                    addr_type, addr = self.target_to_connect
+                    print("尝试连接设备:", self.decode_mac(addr))
+                    self.ble.gap_connect(addr_type, addr)
+                    self.target_to_connect = None
 
 
 if __name__ == "__main__":

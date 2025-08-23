@@ -1,5 +1,5 @@
 import time
-
+import machine
 from ble_controller import BLEController
 from car import Motor, Servo360, Car
 from conf import (BLE_MAC, IN1, IN2, IN3, IN4, SERVO_PIN,
@@ -75,4 +75,6 @@ def handle_notify(key_hex):
 
 ble_controller = BLEController(BLE_MAC, notify_callback=handle_notify)
 ble_controller.run()
-
+# print("进入 REPL")
+print("未找到蓝牙手柄, 进入深度睡眠模式")
+machine.deepsleep()

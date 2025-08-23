@@ -1,5 +1,5 @@
 # 设置开发板
-BOARD = "ESP32-C3"  # 或者 ESP32
+BOARD = "ESP32-C3"  # ESP32-C3 或者 ESP32
 
 # VR 手柄(LOOKBON) MAC 地址
 # BLE_MAC = "9A:E3:4F:3E:F2:BF"  # 根据实际情况修改
@@ -34,5 +34,5 @@ MOTOR_SPEED_C = 750
 MOTOR_SPEED_D = 1000
 
 # 舵机速度(0 ~ 100)
-SERVO_SPEED = 20
+SERVO_SPEED = 30
 SERVO_SPEED_MAX = 36
