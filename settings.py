@@ -36,5 +36,5 @@ MOTOR_SPEED_D = 1000
 # 舵机速度(0 ~ 100)
 SERVO_SPEED = 26
 
-# 无手柄通知超时, 自动关机
+# 设置手柄无通知超时, 自动关机
 NO_NOTIFY_TIMEOUT = 5 # 分钟
