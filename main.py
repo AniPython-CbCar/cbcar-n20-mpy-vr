@@ -2,13 +2,13 @@ import time
 import machine
 from ble_controller import BLEController
 from car import Motor, Servo360, Car
-from conf import (BLE_MAC, IN1, IN2, IN3, IN4, SERVO_PIN,
-                  LEFT_REVERSE, RIGHT_REVERSE,
-                  MOTOR_SPEED_A,
-                  MOTOR_SPEED_B,
-                  MOTOR_SPEED_C,
-                  MOTOR_SPEED_D,
-                  SERVO_SPEED)
+from settings import (BLE_MAC, IN1, IN2, IN3, IN4, SERVO_PIN,
+                      LEFT_REVERSE, RIGHT_REVERSE,
+                      MOTOR_SPEED_A,
+                      MOTOR_SPEED_B,
+                      MOTOR_SPEED_C,
+                      MOTOR_SPEED_D,
+                      SERVO_SPEED)
 
 mo_a = Motor(IN1, IN2, reverse=LEFT_REVERSE)
 mo_b = Motor(IN3, IN4, reverse=RIGHT_REVERSE)

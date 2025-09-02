@@ -4,7 +4,7 @@ import ubluetooth
 import time
 from micropython import const
 from ble_keymap import KEY_MAP
-from conf import LED_PIN, BOARD, NO_NOTIFY_TIMEOUT
+from settings import LED_PIN, BOARD, NO_NOTIFY_TIMEOUT
 
 _IRQ_SCAN_RESULT = const(5)
 _IRQ_SCAN_DONE = const(6)
