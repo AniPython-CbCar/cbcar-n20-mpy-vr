@@ -84,7 +84,7 @@ class Car:
         self.motor_b.stop()
         if self.servo:
             self.servo.stop()
-        print("汽车停止")
+        # print("汽车停止")
 
     def servo_speed(self, value):
         """控制 360 度舵机转速"""

@@ -4,7 +4,7 @@ import ubluetooth
 import time
 from micropython import const
 from ble_keymap import KEY_MAP
-from conf import LED_PIN, BOARD
+from conf import LED_PIN, BOARD, NO_NOTIFY_TIMEOUT
 
 _IRQ_SCAN_RESULT = const(5)
 _IRQ_SCAN_DONE = const(6)
@@ -16,7 +16,7 @@ _IRQ_GATTC_NOTIFY = const(18)
 class BLEController:
     # BLE 事件常量
 
-    def __init__(self, target_mac, scan_time_over=20, notify_callback=None):
+    def __init__(self, target_mac, scan_timeout=20, notify_callback=None):
         """
         target_mac: 目标设备的 MAC 地址
         notify_callback: 回调函数，格式 func(key_hex:str)
@@ -30,7 +30,7 @@ class BLEController:
         self.target_to_connect = None
         self.notify_callback = notify_callback  # 保存回调函数
         self.scan_start_time = time.time()  # 添加扫描开始时间属性
-        self.scan_time_over = scan_time_over  # 设置扫描超时时间(秒)
+        self.scan_time_over = scan_timeout  # 设置扫描超时时间(秒)
 
         if BOARD == "ESP32":
             self.boot_key = Pin(0, Pin.IN, pull=Pin.PULL_UP)
@@ -46,6 +46,7 @@ class BLEController:
         self.ble.irq(self._bt_irq)
 
         self.connected = False
+        self.last_activity_time = time.time()
 
 
     def boot_key_interrupt_handler(self, pin):
@@ -103,7 +104,10 @@ class BLEController:
 
     def start_scan(self):
         print("开始扫描目标设备...")
-        self.ble.gap_scan(5000, 30000, 30000)
+        try:
+            self.ble.gap_scan(5000, 30000, 30000)
+        except OSError:
+            print("蓝牙已关闭")
         self.led_blink()
 
     def _bt_irq(self, event, data):
@@ -146,6 +150,7 @@ class BLEController:
         elif event == _IRQ_GATTC_NOTIFY:
             conn_handle, value_handle, notify_data = data
             key_hex = notify_data.hex().upper()
+            self.last_activity_time = time.time()
             # print("收到通知数据:", key_hex)
 
             # 如果有映射表，打印解析结果
@@ -157,16 +162,24 @@ class BLEController:
             else:
                 print("未知按键:", key_hex)
 
+    def ble_quit(self):
+        self.led_off()
+        self.connected = False
+        self.ble.gap_scan(None)
+        self.ble.active(False)
 
     def run(self):
         self.start_scan()
         while True:
 
+            if time.time() - self.last_activity_time > NO_NOTIFY_TIMEOUT * 60:
+                print(NO_NOTIFY_TIMEOUT, "分钟无手柄操作，自动退出")
+                self.ble_quit()
+                break
+
             if self.boot_key.value() == 0:
-                self.led_off()
                 print("已按下BOOT按键，停止扫描")
-                self.ble.gap_scan(None)
-                self.ble.active(False)
+                self.ble_quit()
                 break
 
             if self.connected:
@@ -180,9 +193,7 @@ class BLEController:
                         continue
                     else:
                         print("扫描超时，停止扫描, 超时时间:", self.scan_time_over)
-                        self.led_off()
-                        self.ble.gap_scan(None)
-                        self.ble.active(False)
+                        self.ble_quit()
                         break
                 else:
                     addr_type, addr = self.target_to_connect
